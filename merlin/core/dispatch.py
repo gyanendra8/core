@@ -49,12 +49,12 @@ if cudf:
     except ImportError:
         pass
 
+
 try:
-    # Dask >= 2021.5.1
-    from dask.dataframe.core import hash_object_dispatch
+    from dask.dataframe.dispatch import hash_object_dispatch
 except ImportError:
-    # Dask < 2021.5.1
     from dask.dataframe.utils import hash_object_dispatch
+
 
 try:
     import nvtx
