@@ -18,11 +18,13 @@ import functools
 import itertools
 from typing import Callable, Optional, Union
 
+import dask
 import dask.dataframe as dd
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+from packaging.version import parse as parse_version
 
 # unused HAS_GPU import is here for backwards compatibility
 from merlin.core.compat import HAS_GPU  # pylint: disable=unused-import # noqa: F401
@@ -50,8 +52,17 @@ if cudf:
         pass
 
 
+# Compatibility import for hash_object_dispatch
+_dask_version = parse_version(dask.__version__)
 try:
-    from dask.dataframe.dispatch import hash_object_dispatch
+    if _dask_version >= parse_version("2025.1.0"):
+        # Try dask-expr compatible location first
+        try:
+            from dask.dataframe._compat import hash_object_dispatch
+        except ImportError:
+            from dask.dataframe.dispatch import hash_object_dispatch
+    else:
+        from dask.dataframe.dispatch import hash_object_dispatch
 except ImportError:
     from dask.dataframe.utils import hash_object_dispatch
 

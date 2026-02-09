@@ -17,12 +17,42 @@ import collections
 import warnings
 
 import dask
+import dask.dataframe as dd
 import pandas as pd
 from dask.base import tokenize
-from dask.blockwise import Blockwise
-from dask.dataframe.core import _concat, new_dd_object
 from dask.delayed import Delayed
-from dask.highlevelgraph import HighLevelGraph
+from packaging.version import parse as parse_version
+
+# Compatibility imports for dask-expr (dask >= 2025.1.0)
+_dask_version = parse_version(dask.__version__)
+_USE_DASK_EXPR = _dask_version >= parse_version("2025.1.0")
+
+if _USE_DASK_EXPR:
+    # dask-expr backend - use public APIs where possible
+    from dask.blockwise import Blockwise
+    from dask.highlevelgraph import HighLevelGraph
+
+    # _concat and new_dd_object may not be available in dask-expr
+    # Use pandas concat as fallback for _concat
+    def _concat(dfs, ignore_index=True):
+        """Concatenate DataFrames with dask-expr compatibility."""
+        return pd.concat(dfs, ignore_index=ignore_index)
+
+    def new_dd_object(graph, name, meta, divisions):
+        """Create a new dask DataFrame object with dask-expr compatibility."""
+        # For dask-expr, we need to use the from_graph function or similar
+        try:
+            from dask.dataframe import from_graph
+            return from_graph(graph, meta, divisions, [(name, i) for i in range(len(divisions) - 1)], name)
+        except ImportError:
+            # Fallback for compatibility
+            from dask.dataframe.core import new_dd_object as _new_dd_object
+            return _new_dd_object(graph, name, meta, divisions)
+else:
+    # Legacy dask - use original imports
+    from dask.blockwise import Blockwise
+    from dask.dataframe.core import _concat, new_dd_object
+    from dask.highlevelgraph import HighLevelGraph
 
 from merlin.core.dispatch import annotate
 from merlin.core.utils import ensure_optimize_dataframe_graph, global_dask_client

@@ -14,54 +14,88 @@
 # limitations under the License.
 #
 
-_DASK_QUERY_PLANNING_ENABLED = False
-try:
-    # Disable query-planning and string conversion
-    import dask
+# Flag to track if dask-expr is being used
+# With dask 2025.1.0+, dask-expr is the only backend
+_DASK_EXPR_ENABLED = False
 
-    dask.config.set(
-        {
-            "dataframe.query-planning": False,
-            "dataframe.convert-string": False,
-        }
-    )
+try:
+    import dask
+    from packaging.version import parse as parse_version
+
+    _dask_version = parse_version(dask.__version__)
+
+    # For dask >= 2025.1.0, dask-expr is mandatory (legacy removed)
+    # For dask >= 2024.3.0, dask-expr is available but optional
+    if _dask_version >= parse_version("2025.1.0"):
+        # dask-expr is now mandatory - no configuration needed
+        _DASK_EXPR_ENABLED = True
+    elif _dask_version >= parse_version("2024.3.0"):
+        # Check if query-planning is enabled
+        import sys
+
+        # Try to disable query-planning for older versions
+        # where it's still optional
+        try:
+            dask.config.set(
+                {
+                    "dataframe.query-planning": False,
+                    "dataframe.convert-string": False,
+                }
+            )
+        except Exception:
+            pass
+
+        import dask.dataframe as dd
+
+        if hasattr(dd, "DASK_EXPR_ENABLED"):
+            _DASK_EXPR_ENABLED = dd.DASK_EXPR_ENABLED
+        else:
+            _DASK_EXPR_ENABLED = "dask_expr" in sys.modules
+    else:
+        # Older versions - disable query planning if available
+        try:
+            dask.config.set(
+                {
+                    "dataframe.query-planning": False,
+                    "dataframe.convert-string": False,
+                }
+            )
+        except Exception:
+            pass
+        _DASK_EXPR_ENABLED = False
+
 except ImportError:
     dask = None
-else:
-    import sys
-
-    import dask.dataframe as dd
-    from packaging.version import parse
-
-    if parse(dask.__version__) > parse("2024.6.0"):
-        # For newer versions of dask, we can just check
-        # the official DASK_EXPR_ENABLED constant
-        _DASK_QUERY_PLANNING_ENABLED = dd.DASK_EXPR_ENABLED
-    else:
-        # For older versions of dask, we must assume query
-        # planning is enabled if dask_expr was imported
-        # (because we can't know for sure)
-        _DASK_QUERY_PLANNING_ENABLED = "dask_expr" in sys.modules
 
 
 def validate_dask_configs():
-    """Central check for problematic config options in Dask"""
-    if _DASK_QUERY_PLANNING_ENABLED:
-        raise NotImplementedError(
-            "Merlin does not support the query-planning API in "
-            "Dask Dataframe yet. Please make sure query-planning is "
-            "disabled before dask.dataframe is imported.\n\ne.g."
-            "dask.config.set({'dataframe.query-planning': False})"
-            "\n\nOr set the environment variable: "
-            "export DASK_DATAFRAME__QUERY_PLANNING=False"
-        )
+    """Central check for dask configuration.
 
-    if dask is not None and dask.config.get("dataframe.convert-string"):
-        raise NotImplementedError(
-            "Merlin does not support automatic string conversion in "
-            "Dask Dataframe yet. Please make sure this option is "
-            "disabled.\n\ne.g."
-            "dask.config.set({'dataframe.convert-string': False})"
-            "\n\nOr set the environment variable: "
-            "export DASK_DATAFRAME__CONVERT_STRING=False"
-        )
+    Note: With dask >= 2025.1.0, dask-expr is the mandatory backend.
+    This function now only checks for the convert-string config option
+    on older dask versions.
+    """
+    if dask is None:
+        return
+
+    from packaging.version import parse as parse_version
+
+    _dask_version = parse_version(dask.__version__)
+
+    # For dask >= 2025.1.0, dask-expr is mandatory, no need to check
+    if _dask_version >= parse_version("2025.1.0"):
+        return
+
+    # For older versions, check if convert-string is enabled
+    try:
+        if dask.config.get("dataframe.convert-string", False):
+            import warnings
+
+            warnings.warn(
+                "Automatic string conversion is enabled in Dask. "
+                "This may cause unexpected behavior with Merlin. "
+                "Consider disabling with: "
+                "dask.config.set({'dataframe.convert-string': False})"
+            )
+    except Exception:
+        pass

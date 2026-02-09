@@ -15,9 +15,25 @@
 #
 import warnings
 
+import dask
 import uavro as ua
 from dask.base import tokenize
-from dask.dataframe.core import new_dd_object
+from packaging.version import parse as parse_version
+
+# Compatibility import for dask-expr
+_dask_version = parse_version(dask.__version__)
+if _dask_version >= parse_version("2025.1.0"):
+    try:
+        from dask.dataframe import from_graph
+
+        def new_dd_object(graph, name, meta, divisions):
+            """Create a new dask DataFrame object with dask-expr compatibility."""
+            keys = [(name, i) for i in range(len(divisions) - 1)]
+            return from_graph(graph, meta, divisions, keys, name)
+    except ImportError:
+        from dask.dataframe.core import new_dd_object
+else:
+    from dask.dataframe.core import new_dd_object
 
 from merlin.core.compat import cudf
 from merlin.io.dataset_engine import DatasetEngine
