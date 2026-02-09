@@ -26,8 +26,18 @@ from typing import Any, Callable, Optional
 
 import dask
 import distributed
-from dask.dataframe.optimize import optimize as dd_optimize
 from dask.distributed import Client, get_client
+from packaging.version import parse as parse_version
+
+# Compatibility for dask-expr
+_dask_version = parse_version(dask.__version__)
+if _dask_version >= parse_version("2025.1.0"):
+    # dask-expr doesn't need manual optimization in the same way
+    def dd_optimize(dsk, keys):
+        """No-op for dask-expr which handles optimization internally."""
+        return dsk
+else:
+    from dask.dataframe.optimize import optimize as dd_optimize
 from tqdm import tqdm
 
 from merlin.core.compat import HAS_GPU, cuda, device_mem_size  # noqa pylint: disable=unused-import

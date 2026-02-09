@@ -1,9 +1,13 @@
-dask>=2022.11.1
-dask-cuda>=22.12.0
-distributed>=2022.11.1
+# Core dask dependencies - supports both legacy and dask-expr backends
+# For dask >= 2025.1.0, dask-expr is the only backend
+dask>=2024.3.0
+dask-expr>=1.0.0
+distributed>=2024.3.0
+dask-cuda>=24.04.0
+
 fsspec>=2022.7.1
 numpy>=1.22.0
-pandas>=1.2.0,<1.6.0dev0
+pandas>=1.3.0,<3.0.0
 numba>=0.54
 pyarrow>=5.0.0
 protobuf>=3.0.0
@@ -13,5 +17,5 @@ betterproto<2.0.0
 packaging
 npy-append-array
 
-# pynvml==11.5.0 is incompatible with distributed<2023.2.1
-pynvml>=11.0.0,<11.5
+# pynvml compatibility
+pynvml>=11.0.0

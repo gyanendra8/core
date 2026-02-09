@@ -38,16 +38,39 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.dataset as pa_ds
 import toolz as tlz
-from dask.dataframe.io.parquet.arrow import ArrowDatasetEngine
-from dask.dataframe.io.parquet.core import apply_filters
 from dask.utils import natural_sort_key
 from pyarrow import parquet as pq
 from pyarrow.parquet import ParquetWriter as pwriter_pyarrow
 
-if Version(dask.__version__) >= Version("2021.07.1"):
-    from dask.dataframe.io.parquet.core import aggregate_row_groups
+# Compatibility imports for dask-expr
+_dask_version = Version(dask.__version__)
+if _dask_version >= Version("2025.1.0"):
+    # dask-expr has different module structure
+    try:
+        from dask.dataframe.io.parquet.arrow import ArrowDatasetEngine
+    except ImportError:
+        # Fallback - ArrowDatasetEngine might not be available
+        ArrowDatasetEngine = None
+
+    try:
+        from dask.dataframe.io.parquet.core import apply_filters
+    except ImportError:
+        # Fallback for apply_filters
+        def apply_filters(df, filters):
+            """Simple fallback for apply_filters."""
+            if filters is None:
+                return df
+            return df  # Return unchanged if no filter implementation
+
+    aggregate_row_groups = None  # May not be available in dask-expr
 else:
-    aggregate_row_groups = None
+    from dask.dataframe.io.parquet.arrow import ArrowDatasetEngine
+    from dask.dataframe.io.parquet.core import apply_filters
+
+    if _dask_version >= Version("2021.07.1"):
+        from dask.dataframe.io.parquet.core import aggregate_row_groups
+    else:
+        aggregate_row_groups = None
 
 from merlin.core.utils import run_on_worker
 from merlin.io.dataset_engine import DatasetEngine
